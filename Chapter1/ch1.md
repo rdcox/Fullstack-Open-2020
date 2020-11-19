@@ -349,6 +349,7 @@
         document.getElementById('root')
     )
     ```
+- Calling the state modifying function will prompt React to re-render the component, meaning that the function body of the component gets re-executed  
 
 ### Event handling
 - We mentioned __event handlers__ in part 0 - these are functions that are registered to be called when specific events occur
@@ -566,6 +567,7 @@
 - Let's add a piece of state to our application containing an array, `allClicks` that remembers all the clicks in the application
 
 ```js
+const App = () => {
   const [left, setLeft] = useState(0)
   const [right, setRight] = useState(0)
   const [allClicks, setAll] = useState([])
@@ -579,7 +581,24 @@
     setAll(allClicks.concat('R'))
     setRight(right + 1)
   }
+
+  return (
+    <div>
+      {left}
+      <button onClick={handleLeftClick}>left</button>
+      <button onClick={handleRightClick}>right</button>
+      {right}
+      <p>{allClicks.join(' ')}</p>
+    </div>
+  )
+}
 ```
+
+- It is also possible to add items to our array using the ```push``` method, but we should not do this - __because we should not mutate our React components directly__
+    - ```concat``` returns a new copy of the array with the item added to it, it does not mutate the original object
+
+- Lastly we call the ```join``` method to join our array into a single string, separated by the argument we passed in: a space (' ')
+
 
 ### Conditional rendering
 
