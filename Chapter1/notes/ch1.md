@@ -599,21 +599,275 @@ const App = () => {
 
 - Lastly we call the ```join``` method to join our array into a single string, separated by the argument we passed in: a space (' ')
 
-
 ### Conditional rendering
+- Let's modify our application so that the rendering of the clicking history is handled by a new *History* component
+
+```js
+const History = (props) => {
+  if (props.allClicks.length === 0) {
+    return (
+      <div>
+        the app is used by pressing the buttons
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      button press history: {props.allClicks.join(' ')}
+    </div>
+  )
+}
+
+const App = () => {
+  // ...
+
+  return (
+    <div>
+      {left}
+      <button onClick={handleLeftClick}>left</button>
+      <button onClick={handleRightClick}>right</button>
+      {right}
+      <History allClicks={allClicks} />
+    </div>
+  )
+}
+```
+
+- As we can see the *History* component is rendered differently depending on the state of the application:
+    - If there are clicks - it will display the click count
+    - If there aren't any clicks - it will display instructions
+
+- This is called **conditional rendering** and we'll see a better way to do it later on
 
 ### Old React
+- Before there were state hooks (added in v16.8.0), components that required state had to define it as part of a class component
+
+- We are learning it this way because this is the future of React, but we will also cover the old way because it comes up in the real world
 
 ### Debugging React applications
+- A lot of time is spent reading and debugging code, so now we will focus on good practices and tools for debugging
+
+- __Remember: Keep the browser's development console open at ALL TIMES__
+    - Specifically, keep the "Console" tab open unless there's a reason to view another one
+    - Keep your console and your code open **at the same time, all the time**
+
+- If your code fails to compile and your browser console lights up in red, fix it immediately - writing more code will not help!
+
+- There is no shame in sacrificing compactness for some print-based debugging when necessary:
+
+    ```js
+    const Button = (props) => { 
+    console.log(props)
+    const { onClick, text } = props
+    return (
+        <button onClick={onClick}>
+        {text}
+        </button>
+    )
+    }
+    ```
+
+- However, when printing to the console:
+    - **DO**
+       ```js
+       console.log('props value is', props)
+       ```
+    - **DON'T**
+       ```js
+       console.log('props value is ' + props)
+       ```
+
+- Debugging is also possible by writing the command *debugger* anywhere in the Chrome developer console's debugger
+    - There are also controls for line-by-line execution, step over, step into, etc. in the *Sources* tab
+    - You can also set a breakpoint in the *Sources* tab, inspecting the values of the component's variables in the *Scope* section
+
+- It's also recommended to install the React Developer Tools extension to Chrome, which adds the ability to see the state of components in the order of their definition
 
 ### Rules of Hooks
+- There are some rules for correctly using the `useState` function:
+    - **DON'T** call `useState` inside of a **loop**, a **conditional expression**, or any place that is not a function defining a component
+    - **DO** call `useState` from inside of a function body that defines a React component
+
+```js
+const App = () => {
+  // these are ok
+  const [age, setAge] = useState(0)
+  const [name, setName] = useState('Juha Tauriainen')
+
+  if ( age > 10 ) {
+    // this does not work!
+    const [foobar, setFoobar] = useState(null)
+  }
+
+  for ( let i = 0; i < age; i++ ) {
+    // also this is not good
+    const [rightWay, setRightWay] = useState(false)
+  }
+
+  const notGood = () => {
+    // and this is also illegal
+    const [x, setX] = useState(-1000)
+  }
+
+  return (
+    //...
+  )
+}
+```
 
 ### Event Handling Revisited
+- We start with a simple application:
+    ```js
+    const App = () => {
+        const [value, setValue] = useState(10)
+
+        return (
+            <div>
+                {value}
+                <button>reset to zero</button>
+            </div>
+        )
+    }
+
+    ReactDOM.render(
+        <App />, 
+        document.getElementById('root')
+    )
+    ```
+
+- We want the clicking of the button to reset the state stored in `value`, so we need to add an *event handler* to it
+
+- Event handlers must always be a function or a reference to a function - they can not be any other type
+    - It can not be a string
+    - It can not be the result of an operation
+    - It can not be a variable assignment
+    - It can not be the return value of a function call like `console.log("I don't really understand how event handlers work...")`
+        - This would actually technically "work" but not in the way we would like - it will log once upon rendering the component, but not in response to each `onClick`, for instance
+    - It *definitely* can not be our state changing function as this would cause another infinite recursion of render -> call state change function -> re-render -> re-call state change function -> ...
+
+- Executing a particular function call in an event handler can be accomplished like this:
+    ```js
+    <button onClick={() => console.log('clicked the button')}>
+        button
+    </button>
+    ```
+- This works because instead of calling the function on render, we're setting the event handler to be a reference to a function
+    - We can also do this with our state change functions:
+        ```js
+        <button onClick={() => setValue(0)}>button</button>
+        ```
+- Often we will define our event handlers in a separate place, and those functions can be comprised of multiple other function calls:
+    ```js
+    const App = () => {
+        const [value, setValue] = useState(10)
+
+        const handleClick = () => {
+            console.log('clicked the button')
+            setValue(0)
+        }
+
+        return (
+            <div>
+                {value}
+                <button onClick={handleClick}>button</button>
+            </div>
+        )
+    }
+    ```
 
 ### Function that returns a function
+- Another way to define event handlers is to use a function that returns a function, for example:
+
+    ```js
+    const App = () => {
+        const [value, setValue] = useState(10)
+
+        const hello = () => {
+            const handler = () => console.log('hello world')
+            return handler
+        }
+
+        return (
+            <div>
+            {value}
+            <button onClick={hello()}>button</button>
+            </div>
+        )
+    }
+    ```
+
+- Earlier we said that an event handler wouldn't work if it was set to be a function call, but because our function *returns a reference to another function*
+    - So `onClick` would effectively be set to `() => console.log('hello world')`
+
+- So why would we want to do this? Let's see a better example:
+    ```js
+    const App = () => {
+        const [value, setValue] = useState(10)
+
+        const hello = (who) => {
+            const handler = () => {
+                console.log('hello', who)
+            }
+            return handler
+        }
+
+        return (
+            <div>
+                {value}
+                <button onClick={hello('world')}>button</button>
+                <button onClick={hello('react')}>button</button>
+                <button onClick={hello('function')}>button</button>
+            </div>
+        )
+    }
+    ```
+- We can see from this example that by passing an argument to our event handler function call, we can get different results from the same basic `hello()` event handler
+
+- We could also take the same approach in defining an event handler that changes the state of our application:
+
+    ```js
+    const App = () => {
+        const [value, setValue] = useState(10)
+    
+        const setToValue = (newValue) => () => {
+            setValue(newValue)
+        }
+    
+        return (
+            <div>
+                {value}
+                <button onClick={setToValue(1000)}>thousand</button>
+                <button onClick={setToValue(0)}>reset</button>
+                <button onClick={setToValue(value + 1)}>increment</button>
+            </div>
+        )
+    }
+    ```
+- Using this approach or simply defining our event handler as `() => setValue(<new value>)` is mostly a matter of taste, neither is inherently better
 
 ### Passing Event Handlers to Child Components
+- Let's extract the button into its own component:
+```js
+const Button = (props) => (
+  <button onClick={props.handleClick}>
+    {props.text}
+  </button>
+)
+```
+- Using this component is easy enough, as long as we make sure that we use the correct attribute names when passing props to the component:
+
+![Image](./images/ChildComponentEventHandlers.png)
 
 ### Do Not Define Components Within Components
+- Your application will continue to appear to work if you define a component inside another component, but **DO NOT DEFINE COMPONENTS INSIDE OTHER COMPONENTS**
+    - This approach provides no benefits
+    - React treats components defined inside of another component in every render
+    - This makes it impossible for React to optimize the component
+
+- There were code examples to go along with this, but the concept should be self-explanatory enough... just don't do it
 
 ### Useful Reading
+- [React Documentation](https://reactjs.org/docs/hello-world.html)
+- [Egghead.io: Start learning React](https://egghead.io/courses/start-learning-react)
+- [The Beginner's Guide to React](https://egghead.io/courses/the-beginner-s-guide-to-reactjs)
