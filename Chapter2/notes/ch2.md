@@ -330,8 +330,196 @@ ReactDOM.render(
 - If the problem *still* hasn't been resolved, more `console.log` statements and bug-hunting are required
 
 ## Forms
+- We'd now like to add the ability to add new notes to our application - to do this we will define a piece of state in our `App` component that is initialized with the notes array passed from the props
+    - Note that we're initializing our state with an array with the `useState` function
+
+    ```js
+    import React, { useState } from 'react'
+    import Note from './components/Note'
+
+    const App = (props) => {
+        const [notes, setNotes] = useState(props.notes)
+
+        return (
+            <div>
+                <h1>Notes</h1>
+                <ul>
+                    {notes.map(note => 
+                        <Note key={note.id} note={note} />
+                    )}
+                </ul>
+            </div>
+        )
+    }
+
+    export default App
+    ```
+- Next, let's add an HTML form to the component that will be used for adding notes
+    ```js
+    const App = (props) => {
+        const [notes, setNotes] = useState(props.notes)
+
+        const addNote = (event) => {
+            event.preventDefault()
+            console.log('button clicked', event.target)
+        }
+
+        return (
+            <div>
+                <h1>Notes</h1>
+                <ul>
+                    {notes.map(note => 
+                        <Note key={note.id} note={note} />
+                    )}
+                </ul>
+                <form onSubmit={addNote}>
+                    <input />
+                    <button type="submit">save</button>
+                </form>   
+            </div>
+        )
+    }
+    ```
+- We have added the `addNote` function as an event handler to the form element that will be called when the form is submitted by clicking the submit button
+    - The `event` parameter is the event that triggers the call to the event handler
+    - The event handler calls `event.preventDefault()` to avoid the default action of form submission which would include a page reload
+
+- To begin accessing the data in the form's input element, we add a new piece of state called `newNote` for storing input **and** we set it as the input element's *value* attribute
+```js
+const App = (props) => {
+  const [notes, setNotes] = useState(props.notes)
+  const [newNote, setNewNote] = useState(
+    'a new note...'
+  ) 
+
+  const addNote = (event) => {
+    event.preventDefault()
+    console.log('button clicked', event.target)
+  }
+
+  return (
+    <div>
+      <h1>Notes</h1>
+      <ul>
+        {notes.map(note => 
+          <Note key={note.id} note={note} />
+        )}
+      </ul>
+      <form onSubmit={addNote}>
+        <input value={newNote} />
+        <button type="submit">save</button>
+      </form>   
+    </div>
+  )
+}
+```
+- However, this causes a console error as *'a new note...'* appears in the input element, but the input text can't be edited:
+
+    ![](./images/ReadOnlyInput.png)
+
+- In order to enable editing of the input element, we need another event handler to sync changes between `<input>` and the component's state
+```js
+const handleNoteChange = (event) => {
+    console.log(event.target.value)
+    setNewNote(event.target.value)
+}
+```
+- and add it to the input element
+```html
+<form onSubmit={addNote}>
+    <input
+        value={newNote}
+        onChange={handleNoteChange}
+    />
+    <button type="submit">save</button>
+</form>
+```
+- The event handler is called every time *a change occurs in the input element*
+    - The event object is received as the `event` parameter
+    - The `target` property refers to the *input* element
+    - `event.target.value` then refers to the input value of the element
+    - We did not call `event.preventDefault()` because there is no default action on input change
+
+- After these changes, the `newNote` state reflects the current value of the input, which means we can complete the `addNote` function for creating new notes:
+    ```js
+    const addNote = (event) => {
+        event.preventDefault()
+        const noteObject = {
+            content: newNote,
+            date: new Date().toISOString(),
+            important: Math.random() < 0.5,
+            id: notes.length + 1,
+        }
+
+        setNotes(notes.concat(noteObject))
+        setNewNote('')
+    }
+    ```
+    - The note content comes from the `newNote` state, which now reflects the `<input>` element on the page
+    - The id comes from incrementing the length of the list of notes
+        - This only works because we can't delete notes
+    - By using `Math.random()` our note has a 50-50 shot of being marked as important
+    - The note is added to the list using `concat`
+        - Do not mutate state directly in React!!!!!!!
+    - Lastly, we reset the value of the controlled input element by calling `setNewNote` of the `newNote` state
+
+- Code for the above is [here](https://github.com/fullstack-hy2020/part2-notes/tree/part2-2)    
 
 ### Filtering displayed elements
+- Now we want to add a filter to the app that only shows important notes - we can begin this by adding a piece of state to the `App` that keeps track of which notes should be displayed
+    ```js
+    const App = (props) => {
+        const [notes, setNotes] = useState(props.notes) 
+        const [newNote, setNewNote] = useState('')
+        const [showAll, setShowAll] = useState(true)
+        // ...
+    ```
+
+- We'll also change the component so it stores a list of all the notes to be displayed in the `notesToShow` variable where the items of this list depend on the state of the component:
+    ```js
+    const notesToShow = showAll
+        ? notes
+        : notes.filter(note => note.important === true)
+    ```
+    - and correspondingly we change the  `<ul>` tags of our return to only display those notes captured in our `notesToShow` function:
+    ```js
+    <div>
+        <h1>Notes</h1>
+        <ul>
+            {notesToShow.map(note =>
+                <Note key={note.id} note={note} />
+            )}
+        </ul>
+        // ...
+    </div>
+    ```
+    - This functions works by using the JS conditional operator
+        - `const result = condition ? valIfTrue : valIfFalse`
+    - In our case, if `showAll` is false - then we'll only show the notes marked as important, if `showAll` is true - then we'll show the whole notes list
+    - We accomplish filtering by use of the `filter` method:
+        - `array.filter(item => item.property === valueToFilterOn)`
+
+- Lastly, let's add the ability to toggle the `showAll` state of the application from the user interface:
+    ```js
+    // ...
+    return (
+        // ...
+        <h1>Notes</h1>
+        <div>
+            <button onClick={() => setShowAll(!showAll)}>
+                show {showAll ? 'important' : 'all' }
+            </button>
+        </div>
+        <ul>
+            {notesToShow.map(note =>
+                <Note key={note.id} note={note} />
+            )}
+        </ul>
+        // ...
+    )
+    ```
+    - The displayed notes are now controlled with a button whose event handler, `() => setShowAll(!showAll)`, is so simple that we define it directly in the attribute of the button element
+        - The text of the button also depends on the value of the `showAll` state
 
 ## Getting data from the server
 
