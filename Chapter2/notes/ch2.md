@@ -522,16 +522,255 @@ const handleNoteChange = (event) => {
         - The text of the button also depends on the value of the `showAll` state
 
 ## Getting data from the server
+- To begin looking at the back-end of applications we will use [JSON Server](https://github.com/typicode/json-server) to act as a server by creating a file resembling the following called *db.json*:
+```json
+{
+  "notes": [
+    {
+      "id": 1,
+      "content": "HTML is easy",
+      "date": "2019-05-30T17:30:31.098Z",
+      "important": true
+    },
+    {
+      "id": 2,
+      "content": "Browser can execute only JavaScript",
+      "date": "2019-05-30T18:39:34.091Z",
+      "important": false
+    },
+    {
+      "id": 3,
+      "content": "GET and POST are the most important methods of HTTP protocol",
+      "date": "2019-05-30T19:20:14.298Z",
+      "important": true
+    }
+  ]
+}
+```
+- You can install JSON Server globally:
+    - `npm install -g json-server`
+- Or locally to a project (within the project dir.):
+    - `npx json-server --port 3001 --watch db.json`
+    - By default this would use port 3000, but because our React app is already using that port we specify 3001
 
 ### The browser as a runtime environment
+- Before we worry about adding new notes to the server, we will fetch the notes already specified in *json.db*
+
+- In the part 0 example project we used **XMLHttpRequest** to make an HTTP request using an XHR object - an approach that is no longer recommended
+
+```js
+const xhttp = new XMLHttpRequest()
+
+xhttp.onreadystatechange = function() {
+  if (this.readyState == 4 && this.status == 200) {
+    const data = JSON.parse(this.responseText)
+    // handle the response that is saved in variable data
+  }
+}
+
+xhttp.open('GET', '/data.json', true)
+xhttp.send()
+```
+1. We register an *event handler* to the `xhttp` object
+2. This event handler will be called whenever the state of the `xhttp` object changes
+3. If the state change means the response to the request has arrived, the data is parsed
+- It should also be noticed that the event handler is defined before the the request is sent to the server but will still execute later on - the code therefore executes *asynchronously*
+
+- Asynchronous programming is required by almost all JavaScript engines / runtimes for IO operations - meaning that they are non-blocking, code will continue to execute after an IO call, even if it is not complete
+    - After the IO operation's completion, the JS engine calls the event handler registered to the operation
+    - This requirement is in place because most JS engines / runtimes are single-threaded - blocking calls would cause the browser to "freeze"
+    - Similar behavior can be seen by long-running code, the following code will also cause the browser to "freeze" after 5 seconds:
+    ```js
+    setTimeout(() => {
+        console.log('loop..')
+        let i = 0
+        while (i < 50000000000) {
+            i++
+        }
+        console.log('end')
+    }, 5000)
+    ```
+    - For the browser to remain responsive, the code logic needs to be such that no single computation can take too long
+    - [What the heck is the event loop anyway?](https://www.youtube.com/watch?v=8aGhZQkoFbQ)
+    - It is possible to parallelize code with ["web workers"](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers) but the event loop of the browser window is still single-threaded
 
 ### npm
+- We could use `fetch` to pull data from the server - it's promise based and and is supported by all modern browsers - but we're going to use `axios` because it's pretty much the same thing but gives an opportunity to talk about adding *npm packages* to our React project
+
+- npm is the "node package manager" and it uses the *package.json* file located in the project
+
+- We could add `axios` by defining the library directly in *package.json*, but it's better to install it from the command line using:
+    - `npm install axios`
+    - **Reminder:** npm commands should always be run in the project root directory, which is where package.json can be found
+    - After running the command in the root directory, axios will be added to the package.json file and downloaded the library code and placed it in the *node_modules* directory
+
+- We can install `json-server` in a similar way by using the command `npm install json-server --save-dev` and start it using the command `npm run server`
+    - We add the `--save-dev` option to `json-server` and not `axios` because `json-server` is only a devleopment dependency, whereas `axios` is a runtime dependency required by our program in order to execute
 
 ### Axios and promises
+- Now we should be ready to use axios and we can access the library by using an appropriate `import` statement:
+```js
+import axios from 'axios'
+
+const promise = axios.get('http://localhost:3001/notes')
+console.log(promise)
+
+const promise2 = axios.get('http://localhost:3001/foobar')
+console.log(promise2)
+```
+- The above code will generate an error message in the console:
+
+    ![](./images/AxiosPromise.png)
+
+- This is because Axios' `get` method returns a **promise**
+    - Mozilla: *"A Promise is an object representing the eventual completion or failure of an asynchronous operation"*
+    - AKA an object that represents an asynchronous operation
+
+- A promise can have three states:
+
+1. **pending**: The final value is not available yet
+2. **fulfilled**: The operation has completed and the final value is available, which is usually a successful operation - AKA a resolved state
+3. **rejected**: An error prevented the final value from being determined, which is usually a failed operation
+
+- When we want to access the result of the operation represented by the promise, we must register an event handler to it using `then`:
+    ```js
+    const promise = axios.get('http://localhost:3001/notes')
+
+    promise.then(response => {
+        console.log(response)
+    })
+    ```
+    - This will finally print the notes from *json.db* to the console
+    - The JS runtime environment calls `then` and provides a `response` object as a parameter containing all essential data related to the HTTP GET request (data, status code, headers)
+
+- Generally it isn't necessary to store the promise in its own variable and often looks better to chain calls together:
+```js
+axios
+  .get('http://localhost:3001/notes')
+  .then(response => {
+    const notes = response.data
+    console.log(notes)
+  })
+```
+
+- Though the data is returned in plaintext, axios can still parse the data into a JS array because the server has specified that the data format is *application/json; charset=utf-8* in its *content-type* header
+
+- We can now begin using the data from the server and render it in our React app - though the initial approach we will use has many problems as we're only rendering the entire `App` component only when there's a successful response:
+
+```js
+import React from 'react'
+import ReactDOM from 'react-dom'
+import App from './App'
+
+import axios from 'axios'
+
+axios.get('http://localhost:3001/notes').then(response => {
+  const notes = response.data
+  ReactDOM.render(
+    <App notes={notes} />,
+    document.getElementById('root')
+  )
+})
+```
 
 ### Effect-hooks
+- After seeing state hooks earlier, which provide state to components defined as functions, we will now also look at *effect hooks*
+    - React docs: *"The Effect hook lets you perform side effects in function components. Data fetching, setting up a subscription, and manually changing the DOM in React components are all examples of side effects"*
+
+- We can now use these effect hooks to fetch data from the server:
+
+```js
+import React, { useState, useEffect } from 'react'
+import axios from 'axios'
+import Note from './components/Note'
+
+const App = () => {
+  const [notes, setNotes] = useState([])
+  const [newNote, setNewNote] = useState('')
+  const [showAll, setShowAll] = useState(true)
+
+  useEffect(() => {
+    console.log('effect')
+    axios
+      .get('http://localhost:3001/notes')
+      .then(response => {
+        console.log('promise fulfilled')
+        setNotes(response.data)
+      })
+  }, [])
+  console.log('render', notes.length, 'notes')
+
+  // ...
+}
+```
+
+- Our print statements are executed as follows:
+    - `render 0 notes`
+    - `effect`
+    - `promise fulfilled`
+    - `render 3 notes`
+
+- First the body of the component is executed and the component is rendered for the first time with 0 notes because data has not yet been fetched from the server
+
+- This effect is executed immediately after rendering - thus printing `effect` to the console:
+
+```js
+() => {
+  console.log('effect')
+  axios
+    .get('http://localhost:3001/notes')
+    .then(response => {
+      console.log('promise fulfilled')
+      setNotes(response.data)
+    })
+}
+```
+
+- `axios.get` is called and data starts being fetched from the server and an event handler is registered:
+
+```js
+response => {
+  console.log('promise fulfilled')
+  setNotes(response.data)
+})
+```
+ - When the data arrives from the server, the event handler is called and `promise fulfilled` is printed to the console before storing the received data into the state with `setNotes(response.data)`
+
+ - The call to our state-update function triggers a re-render of the component and now `render 3 notes` is printed to the console and the notes are rendered
+
+ - We can re-write this code differently:
+ ```js
+ const hook = () => {
+  console.log('effect')
+  axios
+    .get('http://localhost:3001/notes')
+    .then(response => {
+      console.log('promise fulfilled')
+      setNotes(response.data)
+    })
+}
+
+useEffect(hook, [])
+ ```
+
+ - `useEffect` actually takes two parameters - the first a function or the effect itself
+    - React docs: *"By default, effects run after every completed render, but you can choose to fire it only when certain values have changed"*
+
+- The second parameter of `useEffect` is used to specify how often the effect is run - if the second param is an empty array, then the effect is only run along with the first render of our component
+    - This is useful in our application where we only want to get notes from the server on our initial render
 
 ### The development runtime environment
+- Let's review how our application works at a high-level to see what happens when and where:
+
+    ![](./images/DevRuntimeDiagram.png)
+
+1. The JS code making up our React app is run in the browser
+2. The browser gets the JS from the *React dev server* - which is the application running `npm start`
+3. The dev-server transforms the JS into a format understood by the browser, partially by stitching all of our JS into a single file
+4. The React app running in the browser fetches the JSON data from *json-server* running on port 3001 on the machine
+5. *json-server* gets its data from the file *json.db*
+
+- This picture begins to change when the application isn't localized to the developer's machine and is deployed to the internet as we'll see in Ch 3
 
 ## Altering data in the server
 
