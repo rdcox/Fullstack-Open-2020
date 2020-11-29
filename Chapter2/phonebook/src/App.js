@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+
 import Person from './components/Person'
 import PersonForm from './components/PersonForm'
 import Filter from './components/Filter'
+import personService from './services/persons'
 
 const App = () => {
   const [ persons, setPersons ] = useState([])
@@ -12,14 +13,13 @@ const App = () => {
   
   useEffect(() => {
     console.log('effect triggered')
-    axios
-      .get('http://localhost:3001/persons')
-      .then(response => {
-        console.log('promise fulfilled')
-        setPersons(response.data)
+    personService
+      .getAll()
+      .then(initialPersons => {
+        setPersons(initialPersons)
       })
   }, [])
-  console.log('render', persons.length, 'people')
+  console.log('render', persons.length, 'person(s)')
 
   const addPerson = (event) => {
     event.preventDefault()
@@ -29,13 +29,40 @@ const App = () => {
     }
     
     if (hasNameBeenUsed(personObject.name)) {
-      window.alert(`${personObject.name} is already in phonebook`)
+      confirmNumChange(personObject)
     } else {    
-      setPersons(persons.concat(personObject))
+      personService
+        .create(personObject)
+        .then(returnedPerson => {
+          setPersons(persons.concat(returnedPerson))
+        })
     }
 
     setNewName('')
     setNewNumber('')
+  }
+
+  const confirmNumChange = (personObject) => {
+    const updatePerson = persons.filter(person => person.name.toLowerCase() === personObject.name.toLowerCase())[0]
+    console.log(updatePerson)
+    if (window.confirm(`${updatePerson.name} is already added to phonebook, replace the old number with a new one?`)) {
+      console.log(updatePerson.id)
+      personService
+        .update(updatePerson.id, personObject)
+        .then(returnedPerson => {
+          setPersons(persons.map(p => p.id !== updatePerson.id ? p : returnedPerson))
+        })
+    }
+  }
+
+  const deletePerson = (person) => {
+    if (window.confirm(`Delete ${person.name}?`)) {
+      personService
+        .remove(person.id)
+        .then(
+          setPersons(persons.filter(p => p.id !== person.id))
+        )
+    }
   }
 
   const hasNameBeenUsed = (name) => {
@@ -75,7 +102,7 @@ const App = () => {
 
       <h2>Numbers</h2>
       {peopleToShow.map(person => 
-        <Person key={person.name} person={person}></Person>
+        <Person key={person.name} person={person} deleteHandler={() => deletePerson(person)}></Person>
       )}
     </div>
   )
