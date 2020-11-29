@@ -773,18 +773,311 @@ useEffect(hook, [])
 - This picture begins to change when the application isn't localized to the developer's machine and is deployed to the internet as we'll see in Ch 3
 
 ## Altering data in the server
+- We want to be able to store notes that we create into some backend server - we will accomplish this by using a REST API
 
 ### REST
+- In REST terminology we refer to individual data object, like our notes, as *resources*
+    - Each resource has a unique address associated with it - its URL
+    - Per the convention used by json-server we would be able locate an individual note at the resource URL *notes/3* will return the note that has the id number 3
+    - An HTTP GET request to the notes URL would return a list of all notes
+
+- Creating a new resource for storing a note is done by making an HTTP POST request to the notes URL per json-server convention
+
+- json-server requires all data to be sent in JSON format AKA the data must be formatted correctly and contain the *Content-Type* request header with the value *application/json*
 
 ### Sending data to the server
+- Let's make the following changes to the event handler responsible for creating a new note:
+
+```js
+addNote = event => {
+  event.preventDefault()
+  const noteObject = {
+    content: newNote,
+    date: new Date(),
+    important: Math.random() > 0.5,
+  }
+
+  axios
+    .post('http://localhost:3001/notes', noteObject)
+    .then(response => {
+      setNotes(notes.concat(response.data))
+      setNewNote('')
+    })
+}
+```
+    - We omit the `id` property since its better to let the server generate ids for our resources
+    - We send the object to the server with the axios `post` method and the event handler logs the response
+    - We may also find it useful to inspect that the headers and data values are correct using the *Network* tab of the Chrome dev tools
+    - Remember that `concat` creates a new list!
+    - Finally the note appears on the screen because the state-updating function is called
+
+- Now that the data returned by the server is having an effect on the behavior of our application, we have to deal with challenges related to asynchonicity of communication
+    - To combat this, we need new debugging strategies, more console logging, and more
+    - We also need to understand the Javascript runtime and React components
+    - Inspecting the backend server also helps - though later we will learn better methods of checking the back-end
 
 ### Changing the importance of notes
+- Now we will add a button to every note that can be used for toggling its importance by making the following changes to the `Note` component:
+```js
+const Note = ({ note, toggleImportance }) => {
+  const label = note.important
+    ? 'make not important' : 'make important'
+
+  return (
+    <li>
+      {note.content} 
+      <button onClick={toggleImportance}>{label}</button>
+    </li>
+  )
+}
+```
+   - We add a button to the component and assign the `toggleImportance` event handler to it
+
+- The `App` component defines an initial version of the `toggleImportanceOf` event handler function and passes it to every `Note`:
+
+```js
+const App = () => {
+  const [notes, setNotes] = useState([]) 
+  const [newNote, setNewNote] = useState('')
+  const [showAll, setShowAll] = useState(true)
+
+  // ...
+
+  const toggleImportanceOf = (id) => {
+    console.log('importance of ' + id + ' needs to be toggled')
+  }
+
+  // ...
+
+  return (
+    <div>
+      <h1>Notes</h1>
+      <div>
+        <button onClick={() => setShowAll(!showAll)}>
+          show {showAll ? 'important' : 'all' }
+        </button>
+      </div>      
+      <ul>
+        {notesToShow.map((note, i) => 
+          <Note
+            key={i}
+            note={note} 
+            toggleImportance={() => toggleImportanceOf(note.id)}
+          />
+        )}
+      </ul>
+      // ...
+    </div>
+  )
+}
+```
+- Note how every note event handler is specific to the `id`:
+    - ```js
+        console.log(`the importance of ${id} needs to be toggled`)
+      ```
+
+- When we actually want to change the importance of a note, we can do so either with an HTML PUT request to replace the note or an HTML PATCH request to change some of its properties:
+```js
+const toggleImportanceOf = id => {
+  const url = `http://localhost:3001/notes/${id}`
+  const note = notes.find(n => n.id === id)
+  const changedNote = { ...note, important: !note.important }
+
+  axios.put(url, changedNote).then(response => {
+    setNotes(notes.map(note => note.id !== id ? note : response.data))
+  })
+}
+```
+- Almost every line of this event handler contains important details:
+1. The first line defines the unique url for each note resource based on its `id`
+2. The `find` method is used to find the note we want to modify, and we then assign it to the `note` variable
+3. We create a new note thats a copy of the old note with a different importance
+    - Remember here we are using the [object spread syntax](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax)
+    - We do this because we **do not want to mutate state directly** in React!
+    - `changedNote` is a *shallow copy*, meaning that the values of the new object are the same as the values of the old object - including objects themselves
+4. The new note is send with a PUT request to the backend and replace the old object
+5. The promise callback then sets the component's `notes` state to a new array that contains all the items from the previous `notes` along with the new/"updated" note
 
 ### Extracting communication with the backend into a separate module
+- The `App` component has gotten a little bloated with all of our recent changes - single-responsibility principle would suggest that we should move this functionality to its own module
+
+- In a new *src/services* directory, we add a file called *notes.js*:
+```js
+import axios from 'axios'
+const baseUrl = 'http://localhost:3001/notes'
+
+const getAll = () => {
+  return axios.get(baseUrl)
+}
+
+const create = newObject => {
+  return axios.post(baseUrl, newObject)
+}
+
+const update = (id, newObject) => {
+  return axios.put(`${baseUrl}/${id}`, newObject)
+}
+
+export default { 
+  getAll: getAll, 
+  create: create, 
+  update: update 
+}
+```
+- This module returns an object that has three functions that return promises from the axios methods:
+    - getAll
+    - create
+    - update
+
+- The `App` component uses `import` to get access to the module:
+```js
+import noteService from './services/notes'
+
+const App = () => {
+```
+- And the funcs can be used directly with the imported variable `noteService`: 
+
+```js
+const App = () => {
+  // ...
+
+  useEffect(() => {
+    noteService
+      .getAll()
+      .then(response => {
+        setNotes(response.data)
+      })
+  }, [])
+
+  const toggleImportanceOf = id => {
+    const note = notes.find(n => n.id === id)
+    const changedNote = { ...note, important: !note.important }
+
+    noteService
+      .update(id, changedNote)
+      .then(response => {
+        setNotes(notes.map(note => note.id !== id ? note : response.data))
+      })
+  }
+
+  const addNote = (event) => {
+    event.preventDefault()
+    const noteObject = {
+      content: newNote,
+      date: new Date().toISOString(),
+      important: Math.random() > 0.5
+    }
+
+    noteService
+      .create(noteObject)
+      .then(response => {
+        setNotes(notes.concat(response.data))
+        setNewNote('')
+      })
+  }
+
+  // ...
+}
+
+export default App
+```
+
+- We can then go a step further by altering our service to specifically return the response data instead of the entire HTTP response, further simplifying our code - for example:
+
+```js
+// src/services/notes.js
+const getAll = () => {
+  const request = axios.get(baseUrl)
+  return request.then(response => response.data)
+}
+
+// App
+useEffect(() => {
+    noteService
+      .getAll()
+      .then(initialNotes => {
+        setNotes(initialNotes)
+      })
+  }, [])
+```
+- A reminder that the modified `getAll` function still returns a promise, as the `then` method of a promise also returns a promise
 
 ### Cleaner syntax for defining object literals
+- The module we formatted in the last part exports the following object:
+```js
+{ 
+  getAll: getAll, 
+  create: create, 
+  update: update 
+}
+```
+- The left side of this definition are the *keys* of our object, the right side are the *variables* that are defined inside the module - but because these are the same, we can simplify the syntax:
+```js
+{ 
+  getAll, 
+  create, 
+  update 
+}
+```
+- As a result we can simplify the `export` statement:
+    - `export default { getAll, create, update }`
+
+- This is a new feature introduced in ES6 JS to simplify object definitions:
+```js
+// old way
+const person = {
+  name: name,
+  age: age
+}
+
+// new way
+const person = { name, age }
+```
 
 ### Promises and errors
+- If our application allowed users to delete notes we could end up in a situation where a user tried to change the importance of note that's already been deleted
+
+- We might receive an error message like this following:
+
+    ![](./images/Note404Error.png)
+
+- Our application can handle this gracefully by using a second callback function on our promise to be called in the event the promise enters a *rejected* state - the catch method:
+
+```js
+axios
+  .get('http://example.com/probably_will_fail')
+  .then(response => {
+    console.log('success!')
+  })
+  .catch(error => {
+    console.log('fail')
+  })
+```
+
+- The catch method will be used if the request fails and we add it to our existing promise chain:
+
+```js
+const toggleImportanceOf = id => {
+  const note = notes.find(n => n.id === id)
+  const changedNote = { ...note, important: !note.important }
+
+  noteService
+    .update(id, changedNote).then(returnedNote => {
+      setNotes(notes.map(note => note.id !== id ? note : returnedNote))
+    })
+    .catch(error => {
+      alert(
+        `the note '${note.content}' was already deleted from server`
+      )
+      setNotes(notes.filter(n => n.id !== id))
+    })
+}
+```
+- We display the error message using the alert dialog pop-up rather than expecting the user to look at the Chrome developer's console
+
+- We remove the deleted note from the array using the `filter` method, which we are using to return a new array with all the notes except the one that was deleted
+
+- Later on we probably don't want to use `alert`, we'll use something a little more professional-looking
 
 ## Adding styles to React app
 
