@@ -1080,7 +1080,154 @@ const toggleImportanceOf = id => {
 - Later on we probably don't want to use `alert`, we'll use something a little more professional-looking
 
 ## Adding styles to React app
+- We can begin styling our React application by adding a *.css* file under the src directory and importing it into *index.js*:
+  - `import './index.css'`
 
+- and adding the following CSS rule to the *index.css* file:
+
+```css
+h1 {
+  color: green
+}
+```
+- CSS rules comprise of *selectors* - which element the rule should be applied to - and *declarations* - the rule to be applied
+  - Our selector was h1, so all h1 tags will now be green
+  - You can have multiple declarations per selector
+
+- Using element types for CSS rules is problematic - if our application contains other tags of the same type, the same style rule would apply to them
+
+- If we want to apply our style more specifically then we should use *class selectors*
+  - In regular HTML classes are defined as:
+    - `<li class="note">some text...</li>`
+  - In React we use the className attribute instead of the class attribute:
+    - `<li className='note'> ... </li>`
+  - In CSS class selectors are defined with the `.classname` syntax:
+    - `.note { color: gray; ... }`
+  - Now other `<li></li>` tags won't be affected by the note class style rules
+ 
 ### Improved error message
+- We previously delivered error messages via an alert, now we'll implement the error message as its own React component:
+
+```js
+const Notification = ({ message }) => {
+  if (message === null) {
+    return null
+  }
+
+  return (
+    <div className="error">
+      {message}
+    </div>
+  )
+}
+```
+- If no message is passed, nothing gets rendered. If a message gets passed, it will be rendered inside of `<div></div>` tags
+
+- We also add a new piece of state called *errorMessage* to the `App` component:
+
+```js
+const App = () => {
+  const [notes, setNotes] = useState([]) 
+  const [newNote, setNewNote] = useState('')
+  const [showAll, setShowAll] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('some error happened...')
+
+  // ...
+
+  return (
+    <div>
+      <h1>Notes</h1>
+      <Notification message={errorMessage} />
+      <div>
+        <button onClick={() => setShowAll(!showAll)}>
+          show {showAll ? 'important' : 'all' }
+        </button>
+      </div>      
+      // ...
+    </div>
+  )
+}
+```
+- And we also add a style rule that suits an error message:
+```css
+.error {
+  color: red;
+  background: lightgrey;
+  font-size: 20px;
+  border-style: solid;
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+```
+- And finally we add the new state / component into our `toggleImportanceOf` method
+```js
+const toggleImportanceOf = id => {
+    const note = notes.find(n => n.id === id)
+    const changedNote = { ...note, important: !note.important }
+
+    noteService
+      .update(changedNote).then(returnedNote => {
+        setNotes(notes.map(note => note.id !== id ? note : returnedNote))
+      })
+      .catch(error => {
+        setErrorMessage(
+          `Note '${note.content}' was already removed from server`
+        )
+        setTimeout(() => {
+          setErrorMessage(null)
+        }, 5000)
+        setNotes(notes.filter(n => n.id !== id))
+      })
+  }
+```
+- Now when the error is triggered it will show for five seconds before being set to `null` again:
+
+  ![](./images/StyleExample.png)
 
 ### Inline styles
+- React can also be styled in another way using *inline styles*
+  - The idea here is that any React component or element can be provided CSS as a JS object through the *style* attribute
+  - In normal CSS we would define a style like this:
+    ```css
+    {
+      color: green;
+      font-style: italic;
+      font-size: 16px;
+    }
+    ```
+  - But in React it would look like this:
+    ```js
+    {
+      color: 'green',
+      fontStyle: 'italic',
+      fontSize: 16
+    }
+    ```
+    - Every CSS property is defined as a separate property of the JS object
+    - Numeric values for pixels can simply be defined as integers
+    - properties are written in `camelCase` not `kebab-case`
+
+- We could then use our JS style object as follows:
+```js
+const Footer = () => {
+  const footerStyle = {
+    color: 'green',
+    fontStyle: 'italic',
+    fontSize: 16
+  }
+  return (
+    <div style={footerStyle}>
+      <br />
+      <em>Note app, Department of Computer Science, University of Helsinki 2020</em>
+    </div>
+  )
+}
+```
+
+- Inline styles have some limitations
+  - Pseudo-classes can't be used simply
+
+- **Old school:** Inline styles are bad - .js, .html, and .css should be kept separate
+- **New sChOOL**: Separating CSS, HTML, and JS doesn't scale well in large apps, division should be based on logical functional entities
+  - The structural units that make up the applications functional entities are React components - these should be as self-contained as possible to make them reusable including JS, HTML, and CSS
