@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import Person from './components/Person'
 import PersonForm from './components/PersonForm'
 import Filter from './components/Filter'
+import Notification from './components/Notification'
 import personService from './services/persons'
 
 const App = () => {
@@ -10,7 +11,8 @@ const App = () => {
   const [ newName, setNewName ] = useState('')
   const [ newNumber, setNewNumber ] = useState('')
   const [ filterInput, setFilter ] = useState('')
-  
+  const [ messageObject, setMessage ] = useState({message: null, isError: null})
+
   useEffect(() => {
     console.log('effect triggered')
     personService
@@ -34,6 +36,10 @@ const App = () => {
       personService
         .create(personObject)
         .then(returnedPerson => {
+          setMessage({message: `Added ${returnedPerson.name}`, isError: false})
+          setTimeout(() => {
+            setMessage({message: null, isError: null})
+          }, 5000)
           setPersons(persons.concat(returnedPerson))
         })
     }
@@ -50,7 +56,17 @@ const App = () => {
       personService
         .update(updatePerson.id, personObject)
         .then(returnedPerson => {
+          setMessage({message: `Changed ${updatePerson.name}'s number to ${updatePerson.number}`, isError: false})
+          setTimeout(() => {
+            setMessage({message: null, isError: null})
+          }, 5000)
           setPersons(persons.map(p => p.id !== updatePerson.id ? p : returnedPerson))
+        })
+        .catch(error => {
+          setMessage({message: `Information of ${updatePerson.name} has already been removed from the server`, isError: true})
+          setTimeout(() => {
+            setMessage({message: null, isError: null})
+          }, 5000)
         })
     }
   }
@@ -94,7 +110,8 @@ const App = () => {
   return (
     <div>
       <h2>Phonebook</h2>
-      
+      <Notification message={messageObject.message} isError={messageObject.isError}></Notification>
+
       <Filter persons={persons} filterVal={filterInput} filterHandler={handleFilterChange}></Filter>
       
       <h2>add a new</h2>
