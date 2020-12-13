@@ -137,3 +137,59 @@ func((result) => {
 - The errors given by the type system might sometimes be hard to understand, especially for complex types
 
 - Most of the time the most useful error message information will be at the end
+
+## First steps with TypeScript
+
+### Setting things up
+
+### Creating your own first types
+
+### @types/{npmpackage}
+
+### Improving the project
+
+### More about tsconfig
+
+### Adding express to the mix
+
+### The horrors of any
+
+## Typing the express app
+
+### Setting up the project
+
+### Let there be code
+
+### Implementing the functionality
+
+### Node and JSON modules
+
+### Utility types
+
+### Preventing and accidental undefined result
+
+### Adding a new diary
+
+### Proofing requests
+
+## React with types
+
+### Create React App with TypeScript
+
+### React components with TypeScript
+
+### Deeper type usage
+
+### A note about defining object types
+
+### Working with an existing codebase
+
+### Patientor frontend
+
+### State handling
+
+### Patient listing page
+
+### Full entries
+
+### Add patient form
