@@ -457,18 +457,167 @@ app.use(unknownEndpoint)
 ```
 
 ## Deploying app to internet
+- Now we will connect the frontend we made in Part 2 with our backend
+
+- In the previous part we used a json-server as our backend on http://localhost:3001/notes, now we're using http://localhost:3001/api/notes - so we need to update our `baseUrl` value, like so:
+
+```js
+import axios from 'axios'
+const baseUrl = 'http://localhost:3001/api/notes'
+
+const getAll = () => {
+  const request = axios.get(baseUrl)
+  return request.then(response => response.data)
+}
+```
+- However, now our frontend's GET request to http://localhost:3001/api/notes doesn't work for some reason:
+
+    ![](./images/CORSViolation.png)
 
 ### Same origin policy and CORS
+- Our issue lies with a thing called "CORS", or Cross-Origin Resource Sharing
+
+- From Wikipedia:
+    > Cross-origin resource sharing (CORS) is a mechanism that allows restricted resources (e.g. fonts) on a web page to be requested from another domain outside the domain from which the first resource was served. A web page may freely embed cross-origin images, stylesheets, scripts, iframes, and videos. Certain "cross-domain" requests, notably Ajax requests, are forbidden by default by the same-origin security policy.
+
+- In our application the problem is that, by default, the JavaScript code of an application that runs in a browser can only communicate with a server in the same origin
+    - Because our frontend is using localhost port 3000, and our backend is using localhost port 3001, they do not share an origin
+    - This is not specific to React or Node, same origin policy is a universal principle of web applications
+
+- We can allow requests from other origins by using Node's cors middleware
+    - It can be installed using npm:
+        - `npm install cors`
+    - Then configured to allow for requests from all origins:
+        - `const cors = require('cors')`
+        - `app.use(cors())`    
 
 ### Application to the Internet
+- Now that our frontend, backend, and middleware are set up, we can move our application to the internet
+    - For this we will use [Heroku](https://devcenter.heroku.com/articles/getting-started-with-nodejs)
+
+- We add a *Procfile* to the project's root to tell Heroku how to start the application:
+    - `web: npm start`
+
+- Change the definition of the port our application uses at the botton of the *index.js* file like so:
+    - `const PORT = process.env.PORT || 3001`
+    - Now we are using a port as defined in an environment variable `PORT` or 3001 if `PORT` is undefined
+
+**Creating a new Heroku app**
+1. We create a Git repo in the project directory 
+2. Add a *.gitignore* to exclude `node_modules`
+3. We create a Heroku application with `heroku create`
+4. We commit our code to the repo
+5. Finally, move it to Heroku with `git push heroku main`
+
+- If all went well, we should be able to access our application's backend as normal
+    - If all did not go well, we can check the logs with `heroku logs`
+    - In the beginning it might be good to always keep an eye on the logs by using `heroku logs -t` which prints the logs to the console whenever something happens on the server
+    - If you are deploying from a git repo where your code is not on the main branch - i.e. if you are using the notes repo from the last lesson - you will need to run `git push heroku HEAD:master` maybe also add `--force`
+
+- The frontend also works with the backend in Heroku if you change the address to Heroku's instead of http://localhost:3001
+
+- But how do we deploy the frontend to the Internet?
 
 ### Frontend production build
+- So far we have been running React code in development mode - in development mode the application is configured to give clear error messages, immediately render code changes, and so on
+
+- When the application is deployed, we must create a production build or a version of the application which is optimized for production
+    - This can be created with:
+        - `npm run build`
+    - This command should be run from the root of the frontend project
+    - Running this command creates:
+        - **/build/**: containing the only HTML file of our application - **index.html**
+        - **/build/static/**: containing a minified version of our application's JS code
+            - The minified code file is a single file containing all of our JS code and its dependencies - it is not very readable 
 
 ### Serving static files from the backend
+- One option for deploying the frontend is to copy the production build directory to the root of the backend repo and have the backend show the frontend's main page as its main page
+    - On Windows use `copy` or `xcopy` to copy frontend directory --> backend repo
+    - It should look something like:
+
+        ![](./images/ExampleRepo.png)
+
+- To make express show static content, our *index.html* and JS files, etc., we need a built-in middleware called [static](http://expressjs.com/en/starter/static-files.html)
+    - `app.use(express.static('build'))`
+    - This will make it so that whenever express gets an HTTP GET request it will first check if the *build* directory contains a file corresponding to the request's address and if a file is found, return it
+    - Now GET requests to the address *www.server.com/index.html* or *www.server.com* will show the React frontend
+    - And GET requests to *www.server.com/api/notes* will be handled by the backend
+
+- Because the frontend and backend will now end up in the same address, we can delare `baseUrl` as a relative URL and make the following changes:
+
+```js
+import axios from 'axios'
+const baseUrl = '/api/notes'
+
+const getAll = () => {
+  const request = axios.get(baseUrl)
+  return request.then(response => response.data)
+}
+```
+- After making this change, we create a new production build and copy it to the root of the backend repo
+    - We can now access the frontend at the backend address: http://localhost:3001/
+
+- When we use a browser to visit http://localhost:3001/, the server returns the *index.html* from the *build* repo
+    - *index.html* knows about our css and js files and should fetch the built files for our application
+    - Communication between frontend and backend can be seen in the Network tab of the Chrome dev console
+
+- Once confirming everything is working we commit the frontend code to the backend repository, and push the code to Heroku again
+    - Still missing functionality to change importance of a note in the backend
+    - We're also still saving notes to a variable, if the application is restarted all of the data disappears
+    - Eventually we'll create a database
+
+- App should now look like this:
+![](./images/NotesAppUpdate.png)
 
 ### Streamlining deploying of the frontend
+- To create a new production build of the frontend without extra manual work, let's add some npm-scripts to the *package.json* of the backend repo:
+
+```json
+{
+  "scripts": {
+    //...
+    "build:ui": "rm -rf build && cd ../../osa2/materiaali/notes-new && npm run build --prod && cp -r build ../../../osa3/notes-backend/",
+    "deploy": "git push heroku main",
+    "deploy:full": "npm run build:ui && git add . && git commit -m uibuild && npm run deploy",    
+    "logs:prod": "heroku logs --tail"
+  }
+}
+```
+- `npm run build:ui`: builds the frontend and copies the production version under the backend repo
+- `npm run deploy`: releases the current backend to Heroku
+- `npm run deploy:full`: combines these two and contains the necessary *git* commands to update the backend repo
+- `npm run logs:prod`: shows Heroku logs
+
+- Windows users need to update their npm script shell to point to bash by default instead of cmd.exe
+    - `npm config set script-shell "C:\\Program Files\\git\\bin\\bash.exe"`
 
 ### Proxy
+- Changes on the frontend have caused it to no longer work in development mode as the connection to the backend does not work
+    - Gives a 404 status code in response
+
+- This is due to changing the backend address to a relative URL:
+    - `const baseUrl = '/api/notes'`
+    - Because in development mode the frontend is at the address *localhost:3000/api/notes* but the back end is at port 3001
+    - This problem should be easy to solve by adding:
+        ```json
+        {
+            "dependencies": {
+                // ...
+            },
+            "scripts": {
+                // ...
+            },
+            "proxy": "http://localhost:3001"
+        }
+        ```
+
+- After restarting the React development environment will work as a proxy - i.e. if the React code requests the 3000 port that request will be redirected to proxy instead
+
+- A negative aspect of this approach is how complicated it is to deploy the frontend
+    - Deploying a new version requires generating a new production build and copying it to the backend repo
+    - This makes automating a deployment pipeline more difficult
+    - We will look into other solutions for this problem later
+    - In some situations it might make sense to deploy the frontend code as its own application and this is [straightforward](https://github.com/mars/create-react-app-buildpack)
 
 ## Saving data to MongoDB
 
