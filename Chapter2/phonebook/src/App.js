@@ -109,7 +109,7 @@ const App = () => {
 
   return (
     <div>
-      <h2>Phonebook Example App</h2>
+      <h2>Phonebook Example Application</h2>
       <Notification message={messageObject.message} isError={messageObject.isError}></Notification>
 
       <Filter persons={persons} filterVal={filterInput} filterHandler={handleFilterChange}></Filter>
