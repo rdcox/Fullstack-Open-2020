@@ -1106,6 +1106,22 @@ app.put('/api/notes/:id', (request, response, next) => {
 - **An important detail regarding `findByIdAndUpdate`**: By default, the `updatedNote` parameter of the event handler receives the original document without the modifications - but because we added the `{new : true}` parameter, our event handler will be called with the new modified document instead of the original
 
 ## Validation and ESLint
+- There are usually contraints we want to apply to the data that is stored in our application's database - for example, our application shouldn't accept notes that contain missing *content* sections
+
+- The validity of the note is checked in the route handler:
+
+```js
+app.post('/api/notes', (request, response) => {
+  const body = request.body
+  if (body.content === undefined) {
+    return response.status(400).json({ error: 'content missing' })
+  }
+
+  // ...
+})
+```
+
+- If the note doesn't have the content property we respond to the request with the status code *400 bad request*
 
 ### Promise chaining
 
